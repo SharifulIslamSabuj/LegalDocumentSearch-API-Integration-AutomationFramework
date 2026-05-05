@@ -1,8 +1,10 @@
 package com.acmeai.xynoptik.api.integration.automation.tests.integration;
 
 import com.acmeai.xynoptik.api.integration.automation.base.BaseTest;
+import com.acmeai.xynoptik.api.integration.automation.client.ResponseWrapper;
 import com.acmeai.xynoptik.api.integration.automation.models.request.GenerateRequest;
 import com.acmeai.xynoptik.api.integration.automation.services.GenerateService;
+import com.acmeai.xynoptik.api.integration.automation.testdata.TestDataFactory;
 import com.acmeai.xynoptik.api.integration.automation.utils.AssertionUtil;
 import org.testng.annotations.Test;
 
@@ -10,18 +12,29 @@ public class RepeatedGenerateTest extends BaseTest {
 
     private final GenerateService generateService = new GenerateService();
 
-    @Test
-    public void repeatedCallsShouldBeStable() {
+    @Test(description = "Verify generate API stability under repeated execution", groups = {"integration", "regression"})
+    public void repeatedGenerateCalls_shouldRemainStable() {
 
-        GenerateRequest request = new GenerateRequest("What is law?");
+        // Arrange
+        GenerateRequest request = TestDataFactory.validGenerateQuery();
 
-        for (int i = 0; i < 5; i++) {
+        // Act & Assert (Stability Check)
+        for (int i = 1; i <= 5; i++) {
 
-            var response = generateService.generate(request);
+            ResponseWrapper response = generateService.generate(request);
 
             AssertionUtil.assertStatusCode(response, 200);
-            AssertionUtil.assertNotNull(response.asString(),
-                    "Response should be consistent");
+
+            AssertionUtil.assertFieldEquals(response, "success", true);
+            AssertionUtil.assertFieldEquals(response, "status", 200);
+
+            AssertionUtil.assertNotEmpty(
+                    response.getBodyAsString(),
+                    "Iteration " + i + ": response should not be empty"
+            );
+
+            // Schema validation
+            response.validateSchema("generate-schema.json");
         }
     }
 }

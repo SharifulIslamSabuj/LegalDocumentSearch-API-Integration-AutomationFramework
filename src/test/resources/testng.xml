@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suite name="ApiAutomationSuite" verbose="1" parallel="methods" thread-count="3">
+    <!-- Execution Strategy Interceptor for CI-aware test filtering -->
+    <listeners>
+        <listener class-name="com.acmeai.xynoptik.api.integration.automation.config.ExecutionInterceptor"/>
+    </listeners>
+
+    <test name="ApiTests">
+        <groups>
+            <run>
+                <include name="smoke"/>
+                <include name="regression"/>
+                <include name="integration"/>
+            </run>
+        </groups>
+        <packages>
+            <package name="com.acmeai.xynoptik.api.integration.automation.tests.*"/>
+        </packages>
+    </test>
+</suite>

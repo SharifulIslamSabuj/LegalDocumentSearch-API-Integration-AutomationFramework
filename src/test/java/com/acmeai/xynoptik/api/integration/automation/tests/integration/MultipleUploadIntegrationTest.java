@@ -1,12 +1,13 @@
 package com.acmeai.xynoptik.api.integration.automation.tests.integration;
 
 import com.acmeai.xynoptik.api.integration.automation.base.BaseTest;
+import com.acmeai.xynoptik.api.integration.automation.client.ResponseWrapper;
 import com.acmeai.xynoptik.api.integration.automation.models.request.GenerateRequest;
 import com.acmeai.xynoptik.api.integration.automation.models.request.UploadDocumentRequest;
 import com.acmeai.xynoptik.api.integration.automation.services.DocumentService;
 import com.acmeai.xynoptik.api.integration.automation.services.GenerateService;
+import com.acmeai.xynoptik.api.integration.automation.testdata.TestDataFactory;
 import com.acmeai.xynoptik.api.integration.automation.utils.AssertionUtil;
-import io.restassured.response.Response;
 import org.testng.annotations.Test;
 
 public class MultipleUploadIntegrationTest extends BaseTest {
@@ -14,31 +15,33 @@ public class MultipleUploadIntegrationTest extends BaseTest {
     private final DocumentService documentService = new DocumentService();
     private final GenerateService generateService = new GenerateService();
 
-    @Test
-    public void multipleUploadsShouldWork() {
+    @Test(description = "Multiple uploads should not break system and generate should return valid response", groups = {"integration", "regression"})
+    public void multipleUploads_shouldWorkCorrectly() {
 
-        UploadDocumentRequest doc1 = new UploadDocumentRequest();
-        doc1.setId(1);
-        doc1.setTitle("A");
-        doc1.setContent("Content A");
+        // Arrange
+        UploadDocumentRequest doc1 = TestDataFactory.validUploadDocument();
+        UploadDocumentRequest doc2 = TestDataFactory.validUploadDocument();
+        GenerateRequest request = TestDataFactory.validGenerateQuery();
 
-        UploadDocumentRequest doc2 = new UploadDocumentRequest();
-        doc2.setId(2);
-        doc2.setTitle("B");
-        doc2.setContent("Content B");
+        // Act
+        ResponseWrapper upload1 = documentService.upload(doc1);
+        ResponseWrapper upload2 = documentService.upload(doc2);
+        ResponseWrapper response = generateService.generate(request);
 
-        documentService.upload(doc1);
-        documentService.upload(doc2);
-
-        GenerateRequest request = new GenerateRequest();
-        request.setQuery("Explain documents");
-
-        Response response = generateService.generate(request);
-
+        // Assert
+        AssertionUtil.assertStatusCode(upload1, 200);
+        AssertionUtil.assertStatusCode(upload2, 200);
         AssertionUtil.assertStatusCode(response, 200);
-        AssertionUtil.assertNotEmpty(
-                response.asString(),
-                "Response should contain aggregated knowledge"
-        );
+
+        AssertionUtil.assertFieldEquals(response, "success", true);
+        AssertionUtil.assertFieldEquals(response, "status", 200);
+
+        AssertionUtil.assertNotEmpty(response.getBodyAsString(),
+                "Generated response should not be empty after multiple uploads");
+
+        // Schema validation
+        upload1.validateSchema("upload-schema.json");
+        upload2.validateSchema("upload-schema.json");
+        response.validateSchema("generate-schema.json");
     }
 }

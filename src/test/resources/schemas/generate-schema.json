@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Generate API Response Schema",
+  "description": "Schema for document generation/search API response",
+  "type": "object",
+  "required": ["success", "status"],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Whether the request was successful"
+    },
+    "status": {
+      "type": "integer",
+      "description": "HTTP status code",
+      "minimum": 200,
+      "maximum": 599
+    },
+    "message": {
+      "type": "string",
+      "description": "Response message or error message"
+    },
+    "data": {
+      "type": ["object", "null"],
+      "description": "Response data payload (can be null)"
+    },
+    "detail": {
+      "type": "string",
+      "description": "Detailed error message (if applicable)"
+    }
+  },
+  "additionalProperties": true
+}

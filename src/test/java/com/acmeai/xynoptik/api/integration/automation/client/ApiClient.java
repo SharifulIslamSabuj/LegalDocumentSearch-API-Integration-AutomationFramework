@@ -1,53 +1,74 @@
 package com.acmeai.xynoptik.api.integration.automation.client;
 
+import com.acmeai.xynoptik.api.integration.automation.config.ConfigManager;
+import com.acmeai.xynoptik.api.integration.automation.observability.ObservabilityManager;
+import io.restassured.http.Method;
 import io.restassured.response.Response;
+
+import java.util.Map;
+import java.util.logging.Logger;
+
 import static io.restassured.RestAssured.given;
 
+/**
+ * Enterprise API Client with observability
+ * Integrates with ObservabilityManager for standardized logging
+ */
 public class ApiClient {
+
+    private static final Logger logger = Logger.getLogger(ApiClient.class.getName());
 
     private ApiClient() {}
 
-    public static Response get(String endpoint) {
-        return given()
-                .spec(RequestSpecFactory.getSpec())
-                .when()
-                .get(endpoint);
-    }
+    public static ResponseWrapper request(Method method, String endpoint, Object body, Map<String, String> headers) {
 
-    public static Response post(String endpoint, Object body) {
+        int retryCount = ConfigManager.getRetryCount();
+        int retryDelay = ConfigManager.getRetryDelay();
+        ResponseWrapper lastResponse = null;
 
-        return given()
-                .spec(RequestSpecFactory.getSpec())
-                .body(body)
-                .when()
-                .post(endpoint);
-    }
+        for (int attempt = 0; attempt <= retryCount; attempt++) {
+            try {
+                var request = given()
+                        .spec(RequestSpecBuilderFactory.build(headers, null, null, false));
 
-    public static Response postWithAuth(String endpoint, Object body, String token) {
+                if (body != null) {
+                    request.body(body);
+                }
 
-        return given()
-                .spec(RequestSpecFactory.getSpec())
-                .header("Authorization", "Bearer " + token)
-                .body(body)
-                .when()
-                .post(endpoint);
-    }
+                Response response = request.request(method, endpoint);
+                lastResponse = new ResponseWrapper(response);
 
-    public static Response getWithAuth(String endpoint, String token) {
+                if (response.getStatusCode() < 500) {
+                    return lastResponse;
+                } else {
+                    ObservabilityManager.logServerFailure(method.name(), endpoint, response.getStatusCode(), attempt, retryCount);
+                    if (attempt < retryCount) {
+                        ObservabilityManager.logRetry(method.name(), endpoint, "SERVER_FAILURE", attempt, retryCount, retryDelay);
+                        Thread.sleep(retryDelay);
+                    }
+                }
 
-        return given()
-                .spec(RequestSpecFactory.getSpec())
-                .header("Authorization", "Bearer " + token)
-                .when()
-                .get(endpoint);
-    }
+            } catch (Exception e) {
+                ObservabilityManager.logNetworkFailure(method.name(), endpoint, e.getMessage(), attempt, retryCount);
+                if (attempt < retryCount) {
+                    ObservabilityManager.logRetry(method.name(), endpoint, "NETWORK_FAILURE", attempt, retryCount, retryDelay);
+                    try {
+                        Thread.sleep(retryDelay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
 
-    public static Response deleteWithAuth(String endpoint, String token) {
+        if (lastResponse != null) {
+            logger.warning(String.format("[API_FAILURE] Request %s %s failed after %d attempts, returning status %d",
+                    method, endpoint, retryCount + 1, lastResponse.getStatusCode()));
+        } else {
+            logger.severe(String.format("[API_FAILURE] Request %s %s failed completely with no response after %d attempts",
+                    method, endpoint, retryCount + 1));
+        }
 
-        return given()
-                .spec(RequestSpecFactory.getSpec())
-                .header("Authorization", "Bearer " + token)
-                .when()
-                .delete(endpoint);
+        return lastResponse;
     }
 }

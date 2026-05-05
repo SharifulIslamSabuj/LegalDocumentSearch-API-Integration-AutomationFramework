@@ -9,21 +9,56 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-
-    testImplementation 'io.rest-assured:rest-assured:6.0.0'
-    testImplementation 'io.rest-assured:json-path:6.0.0'
-    testImplementation 'io.rest-assured:xml-path:6.0.0'
-    testImplementation 'io.rest-assured:json-schema-validator:6.0.0'
-
-    testImplementation 'org.testng:testng:7.12.0'
-    testImplementation 'com.thedeanda:lorem:2.2'
-
-    // FIXED: correct scope
-    testImplementation 'io.qameta.allure:allure-testng:2.32.0'
-    testImplementation 'io.qameta.allure:allure-rest-assured:2.32.0'
+configurations.all {
+    resolutionStrategy {
+        // Align Jackson across all transitive dependencies
+        force 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+        force 'com.fasterxml.jackson.core:jackson-core:2.15.3'
+        force 'com.fasterxml.jackson.core:jackson-annotations:2.15.3'
+        force 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.3'
+        force 'org.yaml:snakeyaml:1.33'
+    }
 }
 
+dependencies {
+
+    // =========================
+    // REST ASSURED (STABLE CORE)
+    // =========================
+    testImplementation 'io.rest-assured:rest-assured:5.4.0'
+    testImplementation 'io.rest-assured:json-path:5.4.0'
+    testImplementation 'io.rest-assured:xml-path:5.4.0'
+    testImplementation 'io.rest-assured:json-schema-validator:5.4.0'
+
+    // =========================
+    // TEST FRAMEWORK
+    // =========================
+    testImplementation 'org.testng:testng:7.10.2'
+
+    // =========================
+    // ALLURE (STABLE MATCH SET)
+    // =========================
+    testImplementation 'io.qameta.allure:allure-testng:2.27.0'
+    testImplementation 'io.qameta.allure:allure-rest-assured:2.27.0'
+
+    // =========================
+    // UTILITIES
+    // =========================
+    testImplementation 'com.thedeanda:lorem:2.2'
+    testImplementation 'com.github.javafaker:javafaker:1.0.2'
+
+    // =========================
+    // JSON SCHEMA VALIDATION (STANDALONE - COMPATIBLE WITH JACKSON 2.15.x)
+    // =========================
+    testImplementation 'com.networknt:json-schema-validator:1.5.3'
+
+    // =========================
+    // JACKSON (EXPLICIT ALL MODULES - ALIGNED VERSION)
+    // =========================
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+    testImplementation 'com.fasterxml.jackson.core:jackson-core:2.15.3'
+    testImplementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.3'
+}
 def isWindows = System.getProperty("os.name").toLowerCase().contains("win")
 def allureResultsDir = layout.buildDirectory.dir("allure-results").get().asFile
 def allureReportDir = layout.buildDirectory.dir("allure-report").get().asFile
@@ -67,9 +102,20 @@ test {
         useTestNG {
             suites "src/test/resources/testng-${project.suite}.xml"
         }
+    } else {
+        useTestNG {
+            suites "src/test/resources/testng.xml"
+        }
     }
 
     ignoreFailures = true
+
+    // =========================
+    // EXECUTION CONTROLLER PROPERTIES
+    // =========================
+    systemProperty "env", System.getProperty("env", "dev")
+    systemProperty "groups", System.getProperty("groups", "all")
+    systemProperty "CI", System.getProperty("CI", "false")
 
     systemProperty "allure.results.directory",
             layout.buildDirectory.dir("allure-results").get().asFile.absolutePath

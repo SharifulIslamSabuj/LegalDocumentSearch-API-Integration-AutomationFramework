@@ -1,93 +1,100 @@
 package com.acmeai.xynoptik.api.integration.automation.tests.integration;
 
+import com.acmeai.xynoptik.api.integration.automation.base.BaseTest;
+import com.acmeai.xynoptik.api.integration.automation.client.ResponseWrapper;
 import com.acmeai.xynoptik.api.integration.automation.models.request.GenerateRequest;
 import com.acmeai.xynoptik.api.integration.automation.models.request.UploadDocumentRequest;
 import com.acmeai.xynoptik.api.integration.automation.services.DocumentService;
 import com.acmeai.xynoptik.api.integration.automation.services.GenerateService;
-import io.restassured.response.Response;
-import org.testng.Assert;
+import com.acmeai.xynoptik.api.integration.automation.testdata.TestDataFactory;
+import com.acmeai.xynoptik.api.integration.automation.utils.AssertionUtil;
 import org.testng.annotations.Test;
 
-public class GenerateIntegrationTest {
+public class GenerateIntegrationTest extends BaseTest {
 
     private final DocumentService documentService = new DocumentService();
     private final GenerateService generateService = new GenerateService();
 
-    @Test(description = "Upload → Generate → Validate response stability")
-    public void shouldGenerateResponseFromUploadedDocument() {
+    @Test(description = "Upload → Generate → Validate response stability", groups = {"integration", "regression"})
+    public void uploadThenGenerate_shouldReturnValidResponse() {
 
-        UploadDocumentRequest uploadRequest = new UploadDocumentRequest();
-        uploadRequest.setId(101);
-        uploadRequest.setTitle("Contract Law");
-        uploadRequest.setContent("A contract is a legally binding agreement.");
+        // Arrange
+        UploadDocumentRequest uploadRequest = TestDataFactory.validUploadDocument();
+        GenerateRequest generateRequest = TestDataFactory.validGenerateQuery();
 
-        Response uploadResponse = documentService.uploadDocument(uploadRequest);
-        uploadResponse.then().statusCode(200);
+        // Act
+        ResponseWrapper uploadResponse = documentService.upload(uploadRequest);
+        ResponseWrapper generateResponse = generateService.generate(generateRequest);
 
-        GenerateRequest generateRequest = new GenerateRequest();
-        generateRequest.setQuery("What is a contract?");
+        // Assert
+        AssertionUtil.assertStatusCode(uploadResponse, 200);
+        AssertionUtil.assertStatusCode(generateResponse, 200);
+        AssertionUtil.assertNotEmpty(generateResponse.getBodyAsString(),
+                "Generated response should not be empty");
 
-        Response generateResponse = generateService.generateResponse(generateRequest);
-        generateResponse.then().statusCode(200);
+        // Schema validation
+        uploadResponse.validateSchema("upload-schema.json");
+        generateResponse.validateSchema("generate-schema.json");
+    }
 
-        String responseBody = generateResponse.asString();
+    @Test(description = "Generate without upload should still return valid response", groups = {"smoke", "regression"})
+    public void generateWithoutUpload_shouldReturnValidResponse() {
 
-        Assert.assertNotNull(responseBody, "Response should not be null");
-        Assert.assertTrue(responseBody.trim().length() > 0,
+        // Arrange
+        GenerateRequest request = TestDataFactory.validGenerateQuery();
+
+        // Act
+        ResponseWrapper response = generateService.generate(request);
+
+        // Assert
+        AssertionUtil.assertStatusCode(response, 200);
+        AssertionUtil.assertNotEmpty(response.getBodyAsString(),
                 "Response should not be empty");
+
+        // Schema validation
+        response.validateSchema("generate-schema.json");
     }
 
-    @Test(description = "Generate without upload should still return response")
-    public void shouldHandleGenerateWithoutUpload() {
+    @Test(description = "Multiple uploads should not break system behavior", groups = {"integration", "regression"})
+    public void multipleUploads_shouldRemainStable() {
 
-        GenerateRequest request = new GenerateRequest();
-        request.setQuery("What is law?");
+        // Arrange
+        UploadDocumentRequest doc1 = TestDataFactory.validUploadDocument();
+        UploadDocumentRequest doc2 = TestDataFactory.validUploadDocument();
+        GenerateRequest request = TestDataFactory.validGenerateQuery();
 
-        Response response = generateService.generateResponse(request);
+        // Act
+        ResponseWrapper resp1 = documentService.upload(doc1);
+        ResponseWrapper resp2 = documentService.upload(doc2);
+        ResponseWrapper response = generateService.generate(request);
 
-        response.then().statusCode(200);
+        // Assert
+        AssertionUtil.assertStatusCode(response, 200);
+        AssertionUtil.assertNotEmpty(response.getBodyAsString(),
+                "Response should remain stable after multiple uploads");
 
-        Assert.assertTrue(response.asString().length() > 0);
+        // Schema validation
+        resp1.validateSchema("upload-schema.json");
+        resp2.validateSchema("upload-schema.json");
+        response.validateSchema("generate-schema.json");
     }
 
-    @Test(description = "Multiple uploads should not break system")
-    public void shouldHandleMultipleUploads() {
+    @Test(description = "Repeated generate calls should be stable", groups = {"integration", "regression"})
+    public void repeatedGenerateCalls_shouldBeConsistent() {
 
-        UploadDocumentRequest doc1 = new UploadDocumentRequest();
-        doc1.setId(1);
-        doc1.setTitle("Law A");
-        doc1.setContent("Law governs society.");
-        documentService.uploadDocument(doc1).then().statusCode(200);
+        // Arrange
+        GenerateRequest request = TestDataFactory.validGenerateQuery();
 
-        UploadDocumentRequest doc2 = new UploadDocumentRequest();
-        doc2.setId(2);
-        doc2.setTitle("Law B");
-        doc2.setContent("Contracts are binding.");
-        documentService.uploadDocument(doc2).then().statusCode(200);
-
-        GenerateRequest request = new GenerateRequest();
-        request.setQuery("Explain law");
-
-        Response response = generateService.generateResponse(request);
-
-        response.then().statusCode(200);
-
-        Assert.assertTrue(response.asString().length() > 0);
-    }
-
-    @Test(description = "Repeated generate calls should be stable")
-    public void shouldHandleSequentialGenerateCalls() {
-
-        GenerateRequest request = new GenerateRequest();
-        request.setQuery("What is legal document?");
-
+        // Act & Assert
         for (int i = 0; i < 5; i++) {
+            ResponseWrapper response = generateService.generate(request);
 
-            Response response = generateService.generateResponse(request);
+            AssertionUtil.assertStatusCode(response, 200);
+            AssertionUtil.assertNotEmpty(response.getBodyAsString(),
+                    "Response should remain stable across iterations");
 
-            response.then().statusCode(200);
-
-            Assert.assertTrue(response.asString().length() > 0);
+            // Schema validation on each iteration
+            response.validateSchema("generate-schema.json");
         }
     }
 }

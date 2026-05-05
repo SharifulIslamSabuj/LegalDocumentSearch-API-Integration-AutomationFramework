@@ -1,18 +1,22 @@
 package com.acmeai.xynoptik.api.integration.automation.services;
 
 import com.acmeai.xynoptik.api.integration.automation.client.ApiClient;
+import com.acmeai.xynoptik.api.integration.automation.client.ApiRoutes;
+import com.acmeai.xynoptik.api.integration.automation.client.ResponseWrapper;
 import com.acmeai.xynoptik.api.integration.automation.models.request.UploadDocumentRequest;
-import io.restassured.response.Response;
+import io.restassured.http.Method;
 
 public class DocumentService {
 
-    //Primary clean method (recommended)
-    public Response upload(UploadDocumentRequest request) {
-        return ApiClient.post("/upload", request);
-    }
+    // =========================
+    // ENDPOINT (CENTRALIZED)
+    // =========================
+    private static final String BASE_ENDPOINT = ApiRoutes.UPLOAD;
 
-    //Backward compatibility (for existing tests)
-    public Response uploadDocument(UploadDocumentRequest request) {
-        return upload(request);
+    // =========================
+    // PRIMARY METHOD
+    // =========================
+    public ResponseWrapper upload(UploadDocumentRequest request) {
+        return ApiClient.request(Method.POST, BASE_ENDPOINT, request, null);
     }
 }
